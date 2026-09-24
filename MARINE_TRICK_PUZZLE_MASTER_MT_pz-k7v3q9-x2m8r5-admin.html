@@ -65,7 +65,8 @@ details.charEdit[open]>summary:after{content:"▲"}.charBody{border-top:1px soli
 <div class="field"><label>表示名</label><input id="newName" placeholder="例：ファマリン"></div>
 <div class="field grow"><label>パズル画像</label><div class="dropZone" id="newDrop">画像をここへドラッグ＆ドロップ<br><span class="muted">またはクリックして選択（複数可）</span></div><input id="newImages" type="file" accept="image/*" multiple hidden><div id="newImageCount" class="help">未選択</div></div>
 <button id="createChar">この内容で追加</button></div></div>
-<div class="row" style="justify-content:space-between"><span class="muted">登録済みキャラクター</span><div class="row"><button class="alt" id="auditBtn">ID一覧を確認</button><button class="alt" id="collapseAll">すべて閉じる</button></div></div><div id="charList"></div>
+<div class="row" style="justify-content:space-between"><span class="muted">登録済みキャラクター</span><div class="row"><button class="alt" id="auditBtn">ID一覧を確認</button><button class="alt" id="storageBtn">保存領域を確認</button><button class="alt" id="collapseAll">すべて閉じる</button></div></div><div id="charList"></div>
+<div id="storageBox" class="dataAudit hidden"><h4>ブラウザ保存領域</h4><p class="help">旧版を含むMARINE TRICK PUZZLEの保存データを確認できます。「全消去」はPUZZLEのローカル保存だけを消します。</p><div id="storageList"></div><div class="row" style="margin-top:10px"><button class="warn" id="clearPuzzleStorage">PUZZLE保存データを全消去</button></div></div>
 <div id="auditBox" class="dataAudit hidden"><h4>保存されているID一覧</h4><p class="help">画面に出ていないデータも含め、保存データを直接一覧化します。不要なIDはここから削除できます。</p><div id="auditList"></div></div></div>
 </main>
 
@@ -106,7 +107,7 @@ function renderAdmin(){
  $$(".removeImg").forEach(b=>b.onclick=()=>{let d=b.closest("details"),i=+d.dataset.i,j=+b.dataset.j;data.characters[i].images.splice(j,1);persist();renderAdmin();let x=document.querySelector(`details[data-i="${i}"]`);if(x)x.open=true});
 }
 function saveChar(i,d){let id=d.querySelector(".cid").value.trim().toLowerCase().replace(/[^a-z0-9_-]/g,""),name=d.querySelector(".cname").value.trim();if(!id||!name)return alert("IDと表示名を入力してください");if(data.characters.some((c,k)=>k!==i&&c.id===id))return alert("同じキャラクターIDが既にあります");data.characters[i].id=id;data.characters[i].name=name;data.characters[i].published=d.querySelector(".cpub").checked;persist();renderAdmin();let x=document.querySelector(`details[data-i="${i}"]`);if(x)x.open=true}
-async function createChar(){let id=$("#newId").value.trim().toLowerCase().replace(/[^a-z0-9_-]/g,""),name=$("#newName").value.trim(),files=pendingNewFiles;if(!id||!name)return alert("キャラクターIDと表示名を入力してください");if(data.characters.some(c=>c.id===id))return alert("同じキャラクターIDが既にあります");let images=[];for(const f of files)images.push(await fileData(f));data.characters.push({id,name,published:true,images});persist();$("#newId").value="";$("#newName").value="";$("#newImages").value="";pendingNewFiles=[];$("#newImageCount").textContent="未選択";renderAdmin();let d=document.querySelector(`details[data-i="${data.characters.length-1}"]`);if(d)d.open=true}
+async function createChar(){let id=$("#newId").value.trim().toLowerCase().replace(/[^a-z0-9_-]/g,""),name=$("#newName").value.trim(),files=pendingNewFiles;if(!id||!name)return alert("キャラクターIDと表示名を入力してください");let dupIndex=data.characters.findIndex(c=>c.id===id);if(dupIndex>=0){renderAdmin();let d=document.querySelector(`details[data-i="${dupIndex}"]`);if(d){d.open=true;d.scrollIntoView({behavior:"smooth",block:"center"})}return alert(`ID「${id}」は保存データ内にあります。\n該当キャラクターを開きました。不要なら削除してください。`)}let images=[];for(const f of files)images.push(await fileData(f));data.characters.push({id,name,published:true,images});persist();$("#newId").value="";$("#newName").value="";$("#newImages").value="";pendingNewFiles=[];$("#newImageCount").textContent="未選択";renderAdmin();let d=document.querySelector(`details[data-i="${data.characters.length-1}"]`);if(d)d.open=true}
 
 let pendingNewFiles=[];
 function setNewFiles(files){pendingNewFiles=[...files].filter(f=>f.type.startsWith("image/"));$("#newImageCount").textContent=pendingNewFiles.length?`${pendingNewFiles.length}枚選択中`:"未選択"}
@@ -117,13 +118,22 @@ function bindDrop(zone,input,onFiles){
  ["dragleave","drop"].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();zone.classList.remove("drag")}));
  zone.addEventListener("drop",e=>onFiles(e.dataTransfer.files));
 }
+
+function puzzleStorageKeys(){return Object.keys(localStorage).filter(k=>/puzzle|mtpuzzle/i.test(k))}
+function renderStorage(){
+ let box=$("#storageBox"),list=$("#storageList"),keys=puzzleStorageKeys();box.classList.remove("hidden");
+ list.innerHTML=keys.map(k=>{let raw=localStorage.getItem(k)||"",ids=[];try{let o=JSON.parse(raw);if(Array.isArray(o?.characters))ids=o.characters.map(c=>c?.id).filter(Boolean)}catch(e){}
+ return `<div class="auditRow"><b>${esc(k)}</b><span>${ids.length?"IDs: "+ids.map(esc).join(", "):"IDなし / "+raw.length+"文字"}</span><button class="warn storageDelete" data-key="${esc(k)}">削除</button></div>`}).join("")||'<p class="muted">PUZZLE関連のローカル保存データはありません。</p>';
+ $$(".storageDelete").forEach(b=>b.onclick=()=>{let k=b.dataset.key;if(confirm(`保存領域「${k}」を削除しますか？`)){localStorage.removeItem(k);if(k==="mtpuzzle-master")data=structuredClone(DEFAULT);renderAdmin();renderStorage()}});
+ $("#clearPuzzleStorage").onclick=()=>{if(confirm("PUZZLE関連のローカル保存データをすべて削除しますか？\\n登録画像・IDも消えます。")){puzzleStorageKeys().forEach(k=>localStorage.removeItem(k));data=structuredClone(DEFAULT);renderAdmin();renderStorage();alert("PUZZLEのローカル保存を消去しました")}}
+}
 function renderAudit(){
  let box=$("#auditBox"),list=$("#auditList");box.classList.remove("hidden");
  list.innerHTML=data.characters.map((c,i)=>`<div class="auditRow"><b>${esc(c.id||"(IDなし)")}</b><span>${esc(c.name||"(名前なし)")} ／ ${(c.images||[]).length}画像</span><button class="warn auditDelete" data-i="${i}">削除</button></div>`).join("")||'<p class="muted">保存されているキャラクターIDはありません。</p>';
  $$(".auditDelete").forEach(b=>b.onclick=()=>{let i=+b.dataset.i;if(confirm(`ID「${data.characters[i]?.id||""}」を保存データから完全に削除しますか？`)){data.characters.splice(i,1);persist();renderAdmin();renderAudit()}});
 }
 function fileData(f){return new Promise(r=>{let rd=new FileReader();rd.onload=()=>r(rd.result);rd.readAsDataURL(f)})}
-$("#createChar").onclick=createChar;$("#collapseAll").onclick=()=>$$("details.charEdit").forEach(d=>d.open=false);$("#auditBtn").onclick=()=>{$("#auditBox").classList.contains("hidden")?renderAudit():$("#auditBox").classList.add("hidden")};bindDrop($("#newDrop"),$("#newImages"),setNewFiles);$("#saveBtn").onclick=()=>{persist();renderAdmin();alert("保存しました")};
+$("#createChar").onclick=createChar;$("#collapseAll").onclick=()=>$$("details.charEdit").forEach(d=>d.open=false);$("#auditBtn").onclick=()=>{$("#auditBox").classList.contains("hidden")?renderAudit():$("#auditBox").classList.add("hidden")};$("#storageBtn").onclick=()=>{$("#storageBox").classList.contains("hidden")?renderStorage():$("#storageBox").classList.add("hidden")};bindDrop($("#newDrop"),$("#newImages"),setNewFiles);$("#saveBtn").onclick=()=>{persist();renderAdmin();alert("保存しました")};
 $("#exportJson").onclick=()=>{persist();download("MARINE_TRICK_PUZZLE_DATA.json",JSON.stringify(data,null,2),"application/json")};
 $("#importJson").onclick=()=>$("#jsonFile").click();$("#jsonFile").onchange=async e=>{try{data=JSON.parse(await e.target.files[0].text());persist();renderAdmin()}catch(x){alert("JSONを読み込めませんでした")}};
 function download(name,text,type){let a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
