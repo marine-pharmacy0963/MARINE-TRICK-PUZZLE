@@ -22,6 +22,17 @@ input,select{border:2px solid var(--line);border-radius:12px;padding:10px;backgr
 .complete{position:fixed;inset:0;background:#083b4db8;z-index:30;display:grid;place-items:center;padding:18px}.completeBox{background:white;border-radius:24px;padding:20px;width:min(92vw,560px);text-align:center}.completeBox img{width:100%;max-height:55vh;object-fit:contain;border-radius:15px}
 .adminNote{background:#fff8d9;border:1px solid #f2d06c;padding:10px;border-radius:12px;font-size:13px}
 @media(max-width:620px){.character{grid-template-columns:64px 1fr}.character .row{grid-column:1/-1}.thumb{width:64px;height:64px}.modeCards{grid-template-columns:1fr}header{position:static}}
+
+details.charEdit{border:1px solid var(--line);border-radius:18px;margin:10px 0;background:#fff;overflow:hidden}
+details.charEdit>summary{list-style:none;cursor:pointer;padding:12px;display:grid;grid-template-columns:58px 1fr auto;gap:10px;align-items:center;font-weight:800}
+details.charEdit>summary::-webkit-details-marker{display:none}
+details.charEdit>summary:after{content:"▼";font-size:12px;color:#678}
+details.charEdit[open]>summary:after{content:"▲"}.charBody{border-top:1px solid var(--line);padding:14px}
+.miniThumb{width:58px;height:58px;border-radius:10px;object-fit:cover;background:#eaf7fa}
+.imageGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:10px}
+.imageItem{border:1px solid var(--line);border-radius:14px;padding:8px;text-align:center}.imageItem img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:9px;background:#eef}
+.imageItem button{padding:7px 9px;margin-top:5px}.addBox{border:2px dashed var(--line);background:#f8fdff;border-radius:18px;padding:14px;margin-bottom:14px}
+.switchRow{display:flex;gap:8px;align-items:center;font-weight:700}.help{font-size:12px;color:#5e7a88;margin-top:5px}
 </style></head>
 <body>
 <header><div class="wrap row"><h1 class="grow">🐠 MARINE TRICK PUZZLE <span id="masterBadge">MASTER</span></h1><button class="alt" id="playBtn">▶ プレビュー</button></div></header>
@@ -30,7 +41,7 @@ input,select{border:2px solid var(--line);border-radius:12px;padding:10px;backgr
 <h2>PUZZLE MASTER</h2>
 <p>キャラクターIDをキャラ紹介側と共通化して、<b>?char=famarin</b> のようなURLで直接そのキャラのパズルを開けます。1キャラに複数画像を登録できます。</p>
 <div class="row">
-<button id="addChar">＋ キャラクター追加</button><button class="alt" id="saveBtn">保存</button>
+<button class="alt" id="saveBtn">保存</button>
 <button class="alt" id="exportJson">JSON書き出し</button><button class="alt" id="importJson">JSON読込</button>
 <button class="gold" id="exportPublic">公開index.html書き出し</button>
 <input id="jsonFile" type="file" accept=".json,application/json" hidden>
@@ -42,7 +53,13 @@ input,select{border:2px solid var(--line);border-radius:12px;padding:10px;backgr
 <div class="field"><label>はめる難易度</label><input id="fitLevels" value="2,3,4,5,6"></div>
 <div class="field"><label>スライド難易度</label><input id="slideLevels" value="3,4,5,6"></div>
 </div></div>
-<div class="panel"><h3>キャラクター</h3><div id="charList"></div></div>
+<div class="panel"><h3>キャラクター管理</h3>
+<div class="addBox"><b>＋ 新しいキャラクター</b><p class="help">ID・名前・画像をまとめて入力。画像はあとから何枚でも追加できます。</p>
+<div class="row"><div class="field"><label>キャラクターID</label><input id="newId" placeholder="例：famarin"></div>
+<div class="field"><label>表示名</label><input id="newName" placeholder="例：ファマリン"></div>
+<div class="field grow"><label>パズル画像（複数選択可）</label><input id="newImages" type="file" accept="image/*" multiple></div>
+<button id="createChar">この内容で追加</button></div></div>
+<div class="row" style="justify-content:space-between"><span class="muted">登録済みキャラクター</span><button class="alt" id="collapseAll">すべて閉じる</button></div><div id="charList"></div></div>
 </main>
 
 <section id="gameScreen" class="hidden">
@@ -69,25 +86,22 @@ function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&l
 function load(){try{return JSON.parse(localStorage.getItem("mtpuzzle-master"))}catch(e){return null}}
 function persist(){syncSettings();localStorage.setItem("mtpuzzle-master",JSON.stringify(data))}
 function syncSettings(){data.profileBase=$("#profileBase").value;data.fitLevels=$("#fitLevels").value.split(",").map(Number).filter(x=>x>1);data.slideLevels=$("#slideLevels").value.split(",").map(Number).filter(x=>x>1)}
-function renderAdmin(){ $("#profileBase").value=data.profileBase||"";$("#fitLevels").value=(data.fitLevels||DEFAULT.fitLevels).join(",");$("#slideLevels").value=(data.slideLevels||DEFAULT.slideLevels).join(",");
- $("#charList").innerHTML=data.characters.map((c,i)=>`<div class="character" data-i="${i}">
- <img class="thumb" src="${c.images?.[0]||""}"><div><b>${esc(c.name||"名称未設定")}</b><div class="muted">ID: ${esc(c.id||"")}</div><div class="muted">${(c.images||[]).length}画像</div></div>
- <div class="row"><button class="alt edit">編集</button><button class="warn del">削除</button></div></div>`).join("")||'<p class="muted">まだキャラクターがありません。</p>';
- $$(".edit").forEach(b=>b.onclick=()=>editChar(+b.closest(".character").dataset.i));
- $$(".del").forEach(b=>b.onclick=()=>{let i=+b.closest(".character").dataset.i;if(confirm("削除しますか？")){data.characters.splice(i,1);persist();renderAdmin()}});
+function renderAdmin(){
+ $("#profileBase").value=data.profileBase||"";$("#fitLevels").value=(data.fitLevels||DEFAULT.fitLevels).join(",");$("#slideLevels").value=(data.slideLevels||DEFAULT.slideLevels).join(",");
+ $("#charList").innerHTML=data.characters.map((c,i)=>`<details class="charEdit" data-i="${i}"><summary><img class="miniThumb" src="${c.images?.[0]||""}"><span>${esc(c.name||"名称未設定")}<div class="muted">ID: ${esc(c.id||"")} ／ ${(c.images||[]).length}画像</div></span></summary>
+ <div class="charBody"><div class="row"><div class="field"><label>キャラクターID</label><input class="cid" value="${esc(c.id||"")}"></div><div class="field"><label>表示名</label><input class="cname" value="${esc(c.name||"")}"></div>
+ <label class="switchRow"><input class="cpub" type="checkbox" ${c.published!==false?"checked":""}> 公開する</label><button class="alt saveChar">変更を保存</button><button class="warn del">削除</button></div>
+ <div class="row" style="margin-top:12px"><div class="field grow"><label>画像を追加（複数可）</label><input class="moreImages" type="file" accept="image/*" multiple></div></div>
+ <div class="imageGrid">${(c.images||[]).map((im,j)=>`<div class="imageItem"><img src="${im}"><div class="muted">画像 ${j+1}</div><button class="warn removeImg" data-j="${j}">削除</button></div>`).join("")||'<span class="muted">画像未登録</span>'}</div></div></details>`).join("")||'<p class="muted">まだキャラクターがありません。上の入力欄から追加してください。</p>';
+ $$(".saveChar").forEach(b=>b.onclick=()=>saveChar(+b.closest("details").dataset.i,b.closest("details")));
+ $$(".del").forEach(b=>b.onclick=()=>{let i=+b.closest("details").dataset.i;if(confirm("このキャラクターを削除しますか？")){data.characters.splice(i,1);persist();renderAdmin()}});
+ $$(".moreImages").forEach(inp=>inp.onchange=async()=>{let i=+inp.closest("details").dataset.i;for(const f of inp.files)data.characters[i].images.push(await fileData(f));persist();renderAdmin();let d=document.querySelector(`details[data-i="${i}"]`);if(d)d.open=true});
+ $$(".removeImg").forEach(b=>b.onclick=()=>{let d=b.closest("details"),i=+d.dataset.i,j=+b.dataset.j;data.characters[i].images.splice(j,1);persist();renderAdmin();let x=document.querySelector(`details[data-i="${i}"]`);if(x)x.open=true});
 }
-function addChar(){editChar(-1)}
-function editChar(i){
- let c=i<0?{id:"",name:"",published:true,images:[]}:data.characters[i];
- let id=prompt("キャラクターID（例 famarin）",c.id);if(id===null)return;
- id=id.trim().toLowerCase().replace(/[^a-z0-9_-]/g,""); if(!id)return alert("IDを入力してください");
- let name=prompt("表示名",c.name||id);if(name===null)return;
- let inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.multiple=true;
- inp.onchange=async()=>{let imgs=c.images?[...c.images]:[];for(const f of inp.files)imgs.push(await fileData(f));let obj={...c,id,name,published:true,images:imgs};if(i<0)data.characters.push(obj);else data.characters[i]=obj;persist();renderAdmin();};
- if(confirm("パズル画像を追加しますか？\nキャンセルの場合はID・名前だけ保存します。")) inp.click(); else {let obj={...c,id,name,published:true};if(i<0)data.characters.push(obj);else data.characters[i]=obj;persist();renderAdmin()}
-}
+function saveChar(i,d){let id=d.querySelector(".cid").value.trim().toLowerCase().replace(/[^a-z0-9_-]/g,""),name=d.querySelector(".cname").value.trim();if(!id||!name)return alert("IDと表示名を入力してください");if(data.characters.some((c,k)=>k!==i&&c.id===id))return alert("同じキャラクターIDが既にあります");data.characters[i].id=id;data.characters[i].name=name;data.characters[i].published=d.querySelector(".cpub").checked;persist();renderAdmin();let x=document.querySelector(`details[data-i="${i}"]`);if(x)x.open=true}
+async function createChar(){let id=$("#newId").value.trim().toLowerCase().replace(/[^a-z0-9_-]/g,""),name=$("#newName").value.trim(),files=$("#newImages").files;if(!id||!name)return alert("キャラクターIDと表示名を入力してください");if(data.characters.some(c=>c.id===id))return alert("同じキャラクターIDが既にあります");let images=[];for(const f of files)images.push(await fileData(f));data.characters.push({id,name,published:true,images});persist();$("#newId").value="";$("#newName").value="";$("#newImages").value="";renderAdmin();let d=document.querySelector(`details[data-i="${data.characters.length-1}"]`);if(d)d.open=true}
 function fileData(f){return new Promise(r=>{let rd=new FileReader();rd.onload=()=>r(rd.result);rd.readAsDataURL(f)})}
-$("#addChar").onclick=addChar;$("#saveBtn").onclick=()=>{persist();renderAdmin();alert("保存しました")};
+$("#createChar").onclick=createChar;$("#collapseAll").onclick=()=>$$("details.charEdit").forEach(d=>d.open=false);$("#saveBtn").onclick=()=>{persist();renderAdmin();alert("保存しました")};
 $("#exportJson").onclick=()=>{persist();download("MARINE_TRICK_PUZZLE_DATA.json",JSON.stringify(data,null,2),"application/json")};
 $("#importJson").onclick=()=>$("#jsonFile").click();$("#jsonFile").onchange=async e=>{try{data=JSON.parse(await e.target.files[0].text());persist();renderAdmin()}catch(x){alert("JSONを読み込めませんでした")}};
 function download(name,text,type){let a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
