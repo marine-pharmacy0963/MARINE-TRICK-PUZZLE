@@ -33,6 +33,12 @@ details.charEdit[open]>summary:after{content:"▲"}.charBody{border-top:1px soli
 .imageItem{border:1px solid var(--line);border-radius:14px;padding:8px;text-align:center}.imageItem img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:9px;background:#eef}
 .imageItem button{padding:7px 9px;margin-top:5px}.addBox{border:2px dashed var(--line);background:#f8fdff;border-radius:18px;padding:14px;margin-bottom:14px}
 .switchRow{display:flex;gap:8px;align-items:center;font-weight:700}.help{font-size:12px;color:#5e7a88;margin-top:5px}
+
+.dropZone{border:2px dashed #70c8d9;border-radius:14px;padding:16px;text-align:center;background:#f5fdff;transition:.15s;cursor:pointer}
+.dropZone.drag{background:#dff8ff;border-color:#169fbe;transform:scale(1.01)}
+.dataAudit{margin-top:12px;border-top:1px solid var(--line);padding-top:12px}
+.auditRow{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid #e8f4f6;font-size:13px}
+.levelNote{font-weight:800;color:#31798a;background:#e9faff;border-radius:12px;padding:10px;display:inline-block}
 </style></head>
 <body>
 <header><div class="wrap row"><h1 class="grow">🐠 MARINE TRICK PUZZLE <span id="masterBadge">MASTER</span></h1><button class="alt" id="playBtn">▶ プレビュー</button></div></header>
@@ -57,9 +63,10 @@ details.charEdit[open]>summary:after{content:"▲"}.charBody{border-top:1px soli
 <div class="addBox"><b>＋ 新しいキャラクター</b><p class="help">ID・名前・画像をまとめて入力。画像はあとから何枚でも追加できます。</p>
 <div class="row"><div class="field"><label>キャラクターID</label><input id="newId" placeholder="例：famarin"></div>
 <div class="field"><label>表示名</label><input id="newName" placeholder="例：ファマリン"></div>
-<div class="field grow"><label>パズル画像（複数選択可）</label><input id="newImages" type="file" accept="image/*" multiple></div>
+<div class="field grow"><label>パズル画像</label><div class="dropZone" id="newDrop">画像をここへドラッグ＆ドロップ<br><span class="muted">またはクリックして選択（複数可）</span></div><input id="newImages" type="file" accept="image/*" multiple hidden><div id="newImageCount" class="help">未選択</div></div>
 <button id="createChar">この内容で追加</button></div></div>
-<div class="row" style="justify-content:space-between"><span class="muted">登録済みキャラクター</span><button class="alt" id="collapseAll">すべて閉じる</button></div><div id="charList"></div></div>
+<div class="row" style="justify-content:space-between"><span class="muted">登録済みキャラクター</span><div class="row"><button class="alt" id="auditBtn">ID一覧を確認</button><button class="alt" id="collapseAll">すべて閉じる</button></div></div><div id="charList"></div>
+<div id="auditBox" class="dataAudit hidden"><h4>保存されているID一覧</h4><p class="help">画面に出ていないデータも含め、保存データを直接一覧化します。不要なIDはここから削除できます。</p><div id="auditList"></div></div></div>
 </main>
 
 <section id="gameScreen" class="hidden">
@@ -69,7 +76,7 @@ details.charEdit[open]>summary:after{content:"▲"}.charBody{border-top:1px soli
 <div id="setupScreen" class="hidden">
 <div class="gameHead"><img id="hero" class="thumb" style="width:110px;height:110px"><h2 id="gameName"></h2><p>どっちで遊ぶ？</p></div>
 <div class="modeCards"><button class="mode" data-mode="fit">🧩 はめるパズル</button><button class="mode gold" data-mode="slide">↔️ スライドパズル</button></div>
-<div id="levelArea" class="hidden panel" style="text-align:center"><h3>難易度を選ぶ</h3><div id="levels" class="row" style="justify-content:center"></div></div>
+<div id="levelArea" class="hidden panel" style="text-align:center"><div class="levelNote">🎮 難易度はプレイヤーが毎回選べます</div><h3>難易度を選ぶ</h3><div id="levels" class="row" style="justify-content:center"></div></div>
 </div>
 <div id="playScreen" class="hidden">
 <div class="gameHead"><h2 id="playTitle"></h2><div><span id="moveText">0手</span> ・ <span id="timeText">00:00</span></div></div>
@@ -91,17 +98,32 @@ function renderAdmin(){
  $("#charList").innerHTML=data.characters.map((c,i)=>`<details class="charEdit" data-i="${i}"><summary><img class="miniThumb" src="${c.images?.[0]||""}"><span>${esc(c.name||"名称未設定")}<div class="muted">ID: ${esc(c.id||"")} ／ ${(c.images||[]).length}画像</div></span></summary>
  <div class="charBody"><div class="row"><div class="field"><label>キャラクターID</label><input class="cid" value="${esc(c.id||"")}"></div><div class="field"><label>表示名</label><input class="cname" value="${esc(c.name||"")}"></div>
  <label class="switchRow"><input class="cpub" type="checkbox" ${c.published!==false?"checked":""}> 公開する</label><button class="alt saveChar">変更を保存</button><button class="warn del">削除</button></div>
- <div class="row" style="margin-top:12px"><div class="field grow"><label>画像を追加（複数可）</label><input class="moreImages" type="file" accept="image/*" multiple></div></div>
+ <div class="row" style="margin-top:12px"><div class="field grow"><label>画像を追加</label><div class="dropZone moreDrop">画像をここへドラッグ＆ドロップ<br><span class="muted">またはクリックして選択（複数可）</span></div><input class="moreImages" type="file" accept="image/*" multiple hidden></div></div>
  <div class="imageGrid">${(c.images||[]).map((im,j)=>`<div class="imageItem"><img src="${im}"><div class="muted">画像 ${j+1}</div><button class="warn removeImg" data-j="${j}">削除</button></div>`).join("")||'<span class="muted">画像未登録</span>'}</div></div></details>`).join("")||'<p class="muted">まだキャラクターがありません。上の入力欄から追加してください。</p>';
  $$(".saveChar").forEach(b=>b.onclick=()=>saveChar(+b.closest("details").dataset.i,b.closest("details")));
  $$(".del").forEach(b=>b.onclick=()=>{let i=+b.closest("details").dataset.i;if(confirm("このキャラクターを削除しますか？")){data.characters.splice(i,1);persist();renderAdmin()}});
- $$(".moreImages").forEach(inp=>inp.onchange=async()=>{let i=+inp.closest("details").dataset.i;for(const f of inp.files)data.characters[i].images.push(await fileData(f));persist();renderAdmin();let d=document.querySelector(`details[data-i="${i}"]`);if(d)d.open=true});
+ $$(".moreImages").forEach(inp=>{let zone=inp.closest(".field").querySelector(".moreDrop"),i=+inp.closest("details").dataset.i;bindDrop(zone,inp,async files=>{for(const f of [...files].filter(f=>f.type.startsWith("image/")))data.characters[i].images.push(await fileData(f));persist();renderAdmin();let d=document.querySelector(`details[data-i="${i}"]`);if(d)d.open=true})});
  $$(".removeImg").forEach(b=>b.onclick=()=>{let d=b.closest("details"),i=+d.dataset.i,j=+b.dataset.j;data.characters[i].images.splice(j,1);persist();renderAdmin();let x=document.querySelector(`details[data-i="${i}"]`);if(x)x.open=true});
 }
 function saveChar(i,d){let id=d.querySelector(".cid").value.trim().toLowerCase().replace(/[^a-z0-9_-]/g,""),name=d.querySelector(".cname").value.trim();if(!id||!name)return alert("IDと表示名を入力してください");if(data.characters.some((c,k)=>k!==i&&c.id===id))return alert("同じキャラクターIDが既にあります");data.characters[i].id=id;data.characters[i].name=name;data.characters[i].published=d.querySelector(".cpub").checked;persist();renderAdmin();let x=document.querySelector(`details[data-i="${i}"]`);if(x)x.open=true}
-async function createChar(){let id=$("#newId").value.trim().toLowerCase().replace(/[^a-z0-9_-]/g,""),name=$("#newName").value.trim(),files=$("#newImages").files;if(!id||!name)return alert("キャラクターIDと表示名を入力してください");if(data.characters.some(c=>c.id===id))return alert("同じキャラクターIDが既にあります");let images=[];for(const f of files)images.push(await fileData(f));data.characters.push({id,name,published:true,images});persist();$("#newId").value="";$("#newName").value="";$("#newImages").value="";renderAdmin();let d=document.querySelector(`details[data-i="${data.characters.length-1}"]`);if(d)d.open=true}
+async function createChar(){let id=$("#newId").value.trim().toLowerCase().replace(/[^a-z0-9_-]/g,""),name=$("#newName").value.trim(),files=pendingNewFiles;if(!id||!name)return alert("キャラクターIDと表示名を入力してください");if(data.characters.some(c=>c.id===id))return alert("同じキャラクターIDが既にあります");let images=[];for(const f of files)images.push(await fileData(f));data.characters.push({id,name,published:true,images});persist();$("#newId").value="";$("#newName").value="";$("#newImages").value="";pendingNewFiles=[];$("#newImageCount").textContent="未選択";renderAdmin();let d=document.querySelector(`details[data-i="${data.characters.length-1}"]`);if(d)d.open=true}
+
+let pendingNewFiles=[];
+function setNewFiles(files){pendingNewFiles=[...files].filter(f=>f.type.startsWith("image/"));$("#newImageCount").textContent=pendingNewFiles.length?`${pendingNewFiles.length}枚選択中`:"未選択"}
+function bindDrop(zone,input,onFiles){
+ zone.onclick=()=>input.click();
+ input.onchange=()=>onFiles(input.files);
+ ["dragenter","dragover"].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();zone.classList.add("drag")}));
+ ["dragleave","drop"].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();zone.classList.remove("drag")}));
+ zone.addEventListener("drop",e=>onFiles(e.dataTransfer.files));
+}
+function renderAudit(){
+ let box=$("#auditBox"),list=$("#auditList");box.classList.remove("hidden");
+ list.innerHTML=data.characters.map((c,i)=>`<div class="auditRow"><b>${esc(c.id||"(IDなし)")}</b><span>${esc(c.name||"(名前なし)")} ／ ${(c.images||[]).length}画像</span><button class="warn auditDelete" data-i="${i}">削除</button></div>`).join("")||'<p class="muted">保存されているキャラクターIDはありません。</p>';
+ $$(".auditDelete").forEach(b=>b.onclick=()=>{let i=+b.dataset.i;if(confirm(`ID「${data.characters[i]?.id||""}」を保存データから完全に削除しますか？`)){data.characters.splice(i,1);persist();renderAdmin();renderAudit()}});
+}
 function fileData(f){return new Promise(r=>{let rd=new FileReader();rd.onload=()=>r(rd.result);rd.readAsDataURL(f)})}
-$("#createChar").onclick=createChar;$("#collapseAll").onclick=()=>$$("details.charEdit").forEach(d=>d.open=false);$("#saveBtn").onclick=()=>{persist();renderAdmin();alert("保存しました")};
+$("#createChar").onclick=createChar;$("#collapseAll").onclick=()=>$$("details.charEdit").forEach(d=>d.open=false);$("#auditBtn").onclick=()=>{$("#auditBox").classList.contains("hidden")?renderAudit():$("#auditBox").classList.add("hidden")};bindDrop($("#newDrop"),$("#newImages"),setNewFiles);$("#saveBtn").onclick=()=>{persist();renderAdmin();alert("保存しました")};
 $("#exportJson").onclick=()=>{persist();download("MARINE_TRICK_PUZZLE_DATA.json",JSON.stringify(data,null,2),"application/json")};
 $("#importJson").onclick=()=>$("#jsonFile").click();$("#jsonFile").onchange=async e=>{try{data=JSON.parse(await e.target.files[0].text());persist();renderAdmin()}catch(x){alert("JSONを読み込めませんでした")}};
 function download(name,text,type){let a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
