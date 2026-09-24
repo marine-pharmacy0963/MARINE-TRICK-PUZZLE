@@ -9,16 +9,16 @@
 <div class="row"><div class="field"><label>キャラクター名</label><input id="newName" placeholder="ファマリン"></div><div class="field"><label>連携ID（任意）</label><input id="newId" placeholder="famarin"><span class="help">空欄なら無視</span></div><div class="field grow"><label>画像</label><div class="drop" id="newDrop">画像をドラッグ＆ドロップ<br><span class="help">またはクリック・複数可</span></div><input id="newFiles" type="file" accept="image/*" multiple hidden><span id="newInfo" class="help">未選択</span><div id="newPreview" class="imgs"></div></div><button type="button" id="add">このキャラを登録</button></div></div></details>
 <div id="chars"></div></div>
 <div class="panel"><h3>画像圧縮</h3><div class="row"><label>圧縮 <select id="compress"><option value="on">ON</option><option value="off">OFF</option></select></label><label>最大辺 <select id="maxpx"><option>800</option><option selected>1200</option><option>1600</option><option>2000</option></select>px</label><label>JPEG/WebP品質 <select id="quality"><option value=".7">70%</option><option value=".82" selected>82%</option><option value=".9">90%</option></select></label></div><p class="help">PNG透過画像は透過を維持して縮小。JPEG/WebPは指定品質で圧縮します。</p></div>
+<div class="panel"><h3>💾 保存方式</h3><p style="margin-bottom:6px"><b>画像をブラウザの localStorage へ保存しません。</b></p><p class="help">容量超過を防ぐため、作業中はこのページ内だけで保持します。長期保存は「JSON書出」、再開は「JSON読込」を使ってください。公開indexには登録画像を埋め込んで書き出します。</p></div>
 <div class="panel"><h3>共通設定</h3><div class="row"><div class="field grow"><label>キャラ紹介 基本URL</label><input id="profileBase" value="../CHARACTER/index.html?char="></div><div class="field"><label>はめる難易度</label><input id="fit" value="2,3,4,5,6"></div><div class="field"><label>スライド難易度</label><input id="slide" value="3,4,5,6"></div></div><div class="row" style="margin-top:12px"><button id="save">保存</button><button class="alt" id="jsonOut">JSON書出</button><button class="alt" id="jsonIn">JSON読込</button><input id="jsonFile" type="file" accept=".json" hidden><button class="gold" id="export">公開 index.html 書き出し</button></div></div>
 </main>
 <script>
-const KEY="mtpz-clean-1",D={profileBase:"../CHARACTER/index.html?char=",fit:[2,3,4,5,6],slide:[3,4,5,6],compress:"on",maxpx:1200,quality:.82,characters:[]};let data=load(),pending=[];
+const D={profileBase:"../CHARACTER/index.html?char=",fit:[2,3,4,5,6],slide:[3,4,5,6],compress:"on",maxpx:1200,quality:.82,characters:[]};let data=structuredClone(D),pending=[];
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
-function load(){try{let x=JSON.parse(localStorage.getItem(KEY));return x&&Array.isArray(x.characters)?x:structuredClone(D)}catch(e){return structuredClone(D)}}
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 function nums(s,f){let a=s.split(",").map(Number).filter(x=>Number.isInteger(x)&&x>1&&x<10);return a.length?[...new Set(a)]:f}
 function sync(){data.profileBase=$("#profileBase").value.trim();data.fit=nums($("#fit").value,D.fit);data.slide=nums($("#slide").value,D.slide);data.compress=$("#compress").value;data.maxpx=+$("#maxpx").value;data.quality=+$("#quality").value}
-function save(){sync();localStorage.setItem(KEY,JSON.stringify(data))}
+function save(){sync();return true}
 function drop(z,i,cb){z.onclick=()=>i.click();i.onchange=()=>cb([...i.files]);["dragenter","dragover"].forEach(x=>z.addEventListener(x,e=>{e.preventDefault();z.classList.add("drag")}));["dragleave","drop"].forEach(x=>z.addEventListener(x,e=>{e.preventDefault();z.classList.remove("drag")}));z.addEventListener("drop",e=>cb([...e.dataTransfer.files]))}
 function rawData(f){return new Promise(r=>{let x=new FileReader;x.onload=()=>r(x.result);x.readAsDataURL(f)})}
 async function imageData(f){if(data.compress!=="on")return rawData(f);return new Promise(async resolve=>{let url=await rawData(f),im=new Image;im.onload=()=>{let scale=Math.min(1,data.maxpx/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.round(im.width*scale);c.height=Math.round(im.height*scale);c.getContext("2d").drawImage(im,0,0,c.width,c.height);let transparent=f.type==="image/png",type=transparent?"image/png":(f.type==="image/webp"?"image/webp":"image/jpeg");resolve(c.toDataURL(type,transparent?undefined:data.quality))};im.src=url})}
@@ -54,7 +54,7 @@ async function addChar(){
   $("#newName").value="";$("#newId").value="";$("#newFiles").value="";$("#newInfo").textContent="未選択";$("#newPreview").innerHTML="";
   render();
   let all=$$("#chars details");if(all.length)all[all.length-1].open=true;
-  alert(`「${n}」を登録しました`);
+  alert(`「${n}」を登録しました。\n画像はlocalStorageへ保存していません。`);
  }catch(e){console.error(e);alert("キャラクター登録エラー: "+e.message)}
 }
 function dl(n,t,type){let a=document.createElement("a"),u=URL.createObjectURL(new Blob([t],{type}));a.href=u;a.download=n;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)}
@@ -72,5 +72,5 @@ drop($("#newDrop"),$("#newFiles"),async fs=>{
   let u=URL.createObjectURL(f),box=document.createElement("div");box.className="imgbox";box.innerHTML=`<img src="${u}"><div class="help">${esc(f.name)}</div>`;$("#newPreview").appendChild(box)
  }
 });
-$("#add").addEventListener("click",e=>{e.preventDefault();addChar()});$("#fold").onclick=()=>$$("details.char").forEach((d,i)=>{if(i)d.open=false});$("#save").onclick=()=>{save();alert("保存しました")};$("#jsonOut").onclick=()=>{save();dl("MT_PUZZLE_DATA.json",JSON.stringify(data,null,2),"application/json")};$("#jsonIn").onclick=()=>$("#jsonFile").click();$("#jsonFile").onchange=async e=>{try{let x=JSON.parse(await e.target.files[0].text());if(!Array.isArray(x.characters))throw 0;data=x;localStorage.setItem(KEY,JSON.stringify(data));render()}catch(_){alert("JSONを読み込めません")}};$("#export").onclick=()=>{try{save();let h=gameHTML();if(!h.includes("const DATA=")||!h.includes("function runtime"))throw Error("生成内容の検証に失敗");dl("index.html",h,"text/html")}catch(e){console.error(e);alert("index書き出しエラー: "+e.message)}};render();
+$("#add").addEventListener("click",e=>{e.preventDefault();addChar()});$("#fold").onclick=()=>$$("details.char").forEach((d,i)=>{if(i)d.open=false});$("#save").onclick=()=>{save();alert("作業中データを更新しました。\nブラウザを閉じても残す場合は「JSON書出」を使用してください。")};$("#jsonOut").onclick=()=>{save();dl("MT_PUZZLE_DATA.json",JSON.stringify(data,null,2),"application/json")};$("#jsonIn").onclick=()=>$("#jsonFile").click();$("#jsonFile").onchange=async e=>{try{let x=JSON.parse(await e.target.files[0].text());if(!Array.isArray(x.characters))throw 0;data=x;render()}catch(_){alert("JSONを読み込めません")}};$("#export").onclick=()=>{try{save();let h=gameHTML();if(!h.includes("const DATA=")||!h.includes("function runtime"))throw Error("生成内容の検証に失敗");dl("index.html",h,"text/html")}catch(e){console.error(e);alert("index書き出しエラー: "+e.message)}};render();
 </script></body></html>
