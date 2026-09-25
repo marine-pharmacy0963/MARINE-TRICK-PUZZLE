@@ -222,7 +222,7 @@ function runtime(DATA){
  function fit(){let b=$("#board"),t=$("#tray");b.innerHTML=t.innerHTML="";for(let i=0;i<n*n;i++){let z=document.createElement("div"),r=Math.floor(i/n),q=i%n;z.className="tile";z.dataset.slot=i;Object.assign(z.style,{width:100/n+"%",height:100/n+"%",left:q*100/n+"%",top:r*100/n+"%",background:"rgba(255,255,255,.25)"});b.appendChild(z)}[...Array(n*n).keys()].sort(()=>Math.random()-.5).forEach(i=>{let e=document.createElement("div");e.className="tray";e.draggable=true;e.dataset.piece=i;bg(e,Math.floor(i/n),i%n);e.ondragstart=v=>v.dataTransfer.setData("text/plain",i);e.onpointerup=v=>{if(v.pointerType!=="mouse"){let z=document.elementFromPoint(v.clientX,v.clientY)?.closest("[data-slot]");if(z)put(e,z)}};t.appendChild(e)});protect(document)}
  $("#board").ondragover=e=>e.preventDefault();$("#board").ondrop=e=>{e.preventDefault();let x=document.querySelector(`.tray[data-piece="${e.dataTransfer.getData("text/plain")}"]`),z=document.elementFromPoint(e.clientX,e.clientY)?.closest("[data-slot]");if(x&&z)put(x,z)};
  function put(e,z){$("#moves").textContent=++mv+"手";if(e.dataset.piece===z.dataset.slot){let i=+e.dataset.piece;z.style.background="";bg(z,Math.floor(i/n),i%n);e.remove();placed++;saveResume();if(placed===n*n)done()}else saveResume()}
- function done(){clearInterval(timer);let sec=elapsedBase+Math.floor((Date.now()-start)/1000),br=updateBest();markClear();clearResume();$("#doneImg").src=im();$("#doneName").textContent=c.name;$("#stat").innerHTML=`${mv}手・${Math.floor(sec/60)}分${sec%60}秒<br><b>${br.newBest?(br.old==null?"🏆 BEST "+br.best+"手":"🎉 NEW BEST "+br.best+"手（前回 "+br.old+"手）"):"BEST "+br.best+"手"}</b>`;let pb=$("#profile"),hasProfile=!!String(c.linkId||"").trim();pb.classList.toggle("hidden",!hasProfile);pb.disabled=!hasProfile;pb.title=hasProfile?"":"連携ID未設定"$("#done").classList.remove("hidden");$("#done").scrollTop=0;let di=$("#done>div");if(di)di.scrollTop=0;protect($("#done"))}
+ function done(){clearInterval(timer);let sec=elapsedBase+Math.floor((Date.now()-start)/1000),br=updateBest();markClear();clearResume();$("#doneImg").src=im();$("#doneName").textContent=c.name;$("#stat").innerHTML=`${mv}手・${Math.floor(sec/60)}分${sec%60}秒<br><b>${br.newBest?(br.old==null?"🏆 BEST "+br.best+"手":"🎉 NEW BEST "+br.best+"手（前回 "+br.old+"手）"):"BEST "+br.best+"手"}</b>`;let pb=$("#profile"),hasProfile=!!String(c.linkId||"").trim();pb.classList.toggle("hidden",!hasProfile);pb.disabled=!hasProfile;pb.title=hasProfile?"":"連携ID未設定";$("#done").classList.remove("hidden");$("#done").scrollTop=0;let di=$("#done>div");if(di)di.scrollTop=0;protect($("#done"))}
  $("#restart").onclick=()=>go(n);$("#quit").onclick=setup;$("#closeDone").onclick=()=>{let d=$("#done");d.classList.add("hidden");d.scrollTop=0;setup()};$("#again").onclick=()=>{$("#done").classList.add("hidden");go(n)};
  $("#backLv").onclick=()=>{let keep=mode;$("#done").classList.add("hidden");setup();mode=keep;let btn=$(`.modes button[data-m="${keep}"]`);if(btn)btn.click()};
  $("#backChars").onclick=()=>{$("#done").classList.add("hidden");c=null;choose();resumeOffer()};
@@ -238,27 +238,6 @@ drop($("#newDrop"),$("#newFiles"),async fs=>{
  }
 });
 $("#recompress").onclick=async()=>{sync();if(data.compress!=="on")return alert("圧縮をONにしてください");let before=totalImageBytes(),btn=$("#recompress");btn.disabled=true;btn.textContent="再圧縮中…";try{for(const c of data.characters){for(let i=0;i<c.images.length;i++)c.images[i]=await recompressDataUrl(c.images[i])}let after=totalImageBytes();render();alert("一括再圧縮しました。\\n"+fmtBytes(before)+" → "+fmtBytes(after)+"\\n約"+(before?Math.round((1-after/before)*100):0)+"%削減")}finally{btn.disabled=false;btn.textContent="🗜️ 登録済み画像を一括再圧縮"}};$("#add").addEventListener("click",e=>{e.preventDefault();addChar()});$("#fold").onclick=()=>$$("details.char").forEach((d,i)=>{if(i)d.open=false});$("#save").onclick=()=>{save();alert("作業中データを更新しました。\nブラウザを閉じても残す場合は「JSON書出」を使用してください。")};$("#jsonOut").onclick=()=>{save();dl("MT_PUZZLE_DATA.json",JSON.stringify(data,null,2),"application/json")};$("#jsonIn").onclick=()=>$("#jsonFile").click();$("#jsonFile").onchange=async e=>{try{let x=JSON.parse(await e.target.files[0].text());if(!Array.isArray(x.characters))throw 0;data=migrateData(x);
-let __publicPlan=null;
-$("#exportAssets").onclick=async()=>{
- let b=$("#exportAssets");b.disabled=true;b.textContent="assets変換中…";
- try{
-  sync();let plan=await buildPublicAssetPlan();__publicPlan=plan;
-  let total=plan.files.reduce((a,x)=>a+x.blob.size,0),max=plan.files.reduce((a,x)=>Math.max(a,x.blob.size),0);
-  $("#assetReport").textContent=`公開assets：${plan.files.length}枚 / 合計 ${fmtBytes(total)} / 最大1枚 ${fmtBytes(max)} / WebP ${plan.maxPx}px・品質${Math.round(plan.quality*100)}%`;
-  for(let i=0;i<plan.files.length;i++){if(i)await new Promise(r=>setTimeout(r,120));blobDownload(plan.files[i].name,plan.files[i].blob)}
-  alert(`公開assetsを書き出しました。\n${plan.files.length}枚・合計 ${fmtBytes(total)}\nPC側の assets フォルダへまとめてください。`)
- }catch(e){console.error(e);alert("assets書き出しエラー: "+e.message)}
- finally{b.disabled=false;b.textContent="🖼️ 公開 assets画像を書き出し"}
-};
-$("#exportLight").onclick=async()=>{
- let b=$("#exportLight");b.disabled=true;b.textContent="index作成中…";
- try{
-  sync();let plan=__publicPlan||await buildPublicAssetPlan();__publicPlan=plan;
-  let h=await lightPublicHTML(plan);dl("index.html",h,"text/html");
-  alert("軽量公開 index.html を書き出しました。\n同じ設定で書き出した assets とセットで公開してください。")
- }catch(e){console.error(e);alert("index書き出しエラー: "+e.message)}
- finally{b.disabled=false;b.textContent="🌐 公開 index.html 書き出し"}
-};
 
 applySettings();render();alert("JSONを読み込み、現在仕様へ変換しました。")}catch(_){alert("JSONを読み込めません")}};
 async function makeThumb(src,max=160){if(!src)return"";try{const im=new Image;await new Promise((ok,no)=>{im.onload=ok;im.onerror=no;im.src=src});let sc=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.max(1,Math.round(im.width*sc));c.height=Math.max(1,Math.round(im.height*sc));c.getContext("2d").drawImage(im,0,0,c.width,c.height);return c.toDataURL("image/webp",.62)}catch(_){return src}}
@@ -282,6 +261,28 @@ async function lightPublicHTML(plan){
 function downloadBlob(name,blob){let a=document.createElement("a"),u=URL.createObjectURL(blob);a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500)}
 async function exportAssets(){sync();let total=data.characters.reduce((n,c)=>n+c.images.length,0);if(!total)return alert("書き出す画像がありません");if(!confirm(`${total}枚のassets画像を順番にダウンロードします。\\nダウンロード後、PCで assets フォルダへまとめて入れてください。`))return;let k=0;for(let i=0;i<data.characters.length;i++){let c=data.characters[i],id=assetId(c,i);for(let j=0;j<c.images.length;j++){let u=c.images[j],name=`${id}-${j+1}.${assetExt(u)}`;downloadBlob(name,dataUrlToBlob(u));k++;await new Promise(r=>setTimeout(r,180))}}alert(`${k}枚を書き出しました。\\nこれらを assets フォルダへ入れ、index.html と同じ階層へ配置してください。`)}
 
+
+let __publicPlan=null;
+$("#exportAssets").onclick=async()=>{
+ let b=$("#exportAssets");b.disabled=true;b.textContent="assets変換中…";
+ try{
+  sync();let plan=await buildPublicAssetPlan();__publicPlan=plan;
+  let total=plan.files.reduce((a,x)=>a+x.blob.size,0),max=plan.files.reduce((a,x)=>Math.max(a,x.blob.size),0);
+  $("#assetReport").textContent=`公開assets：${plan.files.length}枚 / 合計 ${fmtBytes(total)} / 最大1枚 ${fmtBytes(max)} / WebP ${plan.maxPx}px・品質${Math.round(plan.quality*100)}%`;
+  for(let i=0;i<plan.files.length;i++){if(i)await new Promise(r=>setTimeout(r,120));blobDownload(plan.files[i].name,plan.files[i].blob)}
+  alert(`公開assetsを書き出しました。\n${plan.files.length}枚・合計 ${fmtBytes(total)}\nPC側の assets フォルダへまとめてください。`)
+ }catch(e){console.error(e);alert("assets書き出しエラー: "+e.message)}
+ finally{b.disabled=false;b.textContent="🖼️ 公開 assets画像を書き出し"}
+};
+$("#exportLight").onclick=async()=>{
+ let b=$("#exportLight");b.disabled=true;b.textContent="index作成中…";
+ try{
+  sync();let plan=__publicPlan||await buildPublicAssetPlan();__publicPlan=plan;
+  let h=await lightPublicHTML(plan);dl("index.html",h,"text/html");
+  alert("軽量公開 index.html を書き出しました。\n同じ設定で書き出した assets とセットで公開してください。")
+ }catch(e){console.error(e);alert("index書き出しエラー: "+e.message)}
+ finally{b.disabled=false;b.textContent="🌐 公開 index.html 書き出し"}
+};
 
 applySettings();render();
 </script></body></html>
