@@ -193,8 +193,7 @@ function auditLinkIds(show=false){
 
 function safeAssetId(c,i){
  let id=strictLinkId(c);
- if(!id)throw Error(`「${c?.name||("キャラ"+(i+1))}」の連携IDを取得できません`);
- if(!/^[a-z0-9_-]+$/.test(id))throw Error(`「${c.name}」の連携ID「${id}」が不正です`);
+ if(!id||!/^[a-z0-9_-]+$/.test(id))throw Error(`「${c?.name||("キャラ"+(i+1))}」の連携IDが不正です`);
  return id
 }
 async function publicWebP(src,maxPx,quality){
@@ -213,14 +212,27 @@ async function publicWebP(src,maxPx,quality){
  })
 }
 async function buildPublicAssetPlan(){
- let maxPx=+($("#assetMaxPx")?.value||800),quality=+($("#assetQuality")?.value||.65),files=[],manifest={};
+ let audit=auditLinkIds(false);
+ if(!audit.ok)throw Error("連携ID監査に失敗しました:\n"+audit.issues.join("\n"));
+ let maxPx=+($("#assetMaxPx")?.value||800),quality=+($("#assetQuality")?.value||.65),files=[],manifest={},names=new Set();
  for(let ci=0;ci<data.characters.length;ci++){
-  let c=data.characters[ci];if(c.published===false)continue;let id=safeAssetId(c,ci);if(manifest[id])throw Error(`連携ID「${id}」が重複しています`);manifest[id]=[];
+  let c=data.characters[ci];
+  if(c.published===false)continue;
+  let id=strictLinkId(c);
+  if(!id||!/^[a-z0-9_-]+$/.test(id))throw Error(`「${c.name}」の連携IDが不正です`);
+  if(manifest[id])throw Error(`連携ID「${id}」が重複しています`);
+  manifest[id]=[];
   for(let j=0;j<(c.images||[]).length;j++){
-   let blob=await publicWebP(c.images[j],maxPx,quality),name=`${id}-${j+1}.webp`;
-   files.push({name,blob,character:c.name,index:j});manifest[id].push(`assets/${name}`)
+   let name=`${id}-${j+1}.webp`;
+   if(names.has(name))throw Error(`assets名「${name}」が重複しています`);
+   names.add(name);
+   let blob=await publicWebP(c.images[j],maxPx,quality);
+   if(!blob||blob.type!=="image/webp")throw Error(`「${c.name}」画像${j+1}のWebP変換に失敗しました`);
+   files.push({name,blob,character:c.name,linkId:id,index:j});
+   manifest[id].push(`assets/${name}`)
   }
  }
+ if(files.some(f=>/^character-\d+/i.test(f.name)))throw Error("禁止された character-xx ファイル名を検出しました");
  return {files,manifest,maxPx,quality}
 }
 
@@ -281,7 +293,7 @@ async function lightPublicHTML(plan){
  sync();
  let pub=structuredClone(data);
  for(let i=0;i<pub.characters.length;i++){
-   let orig=data.characters[i],id=safeAssetId(orig,i);
+   let orig=data.characters[i],id=strictLinkId(orig);if(orig.published!==false&&!id)throw Error(`「${orig.name}」の連携IDがありません`);
    pub.characters[i].thumb=await makeThumb(orig.images[0]||"",data.thumbPx||160);
    pub.characters[i].images=(plan.manifest[id]||[]).slice();
  }
@@ -322,11 +334,17 @@ async function exportPublicZip(){
   let plan=await buildPublicAssetPlan();
   if(!plan.files.length)return alert("公開する画像がありません");
   let html=await lightPublicHTML(plan),enc=new TextEncoder(),files=[{name:"index.html",bytes:enc.encode(html)}];
-  for(const f of plan.files)files.push({name:"assets/"+f.name,bytes:new Uint8Array(await f.blob.arrayBuffer())});
+  for(const f of plan.files){
+   if(!/^[a-z0-9_-]+-\d+\.webp$/.test(f.name))throw Error(`不正なassets名: ${f.name}`);
+   files.push({name:"assets/"+f.name,bytes:new Uint8Array(await f.blob.arrayBuffer())})
+  }
+  if(files.some(f=>/\.webp$/i.test(f.name)&&!f.name.startsWith("assets/")))throw Error("ルート直下WebPを検出したためZIP生成を中止しました");
+  let manifestText=["MARINE TRICK PUZZLE PUBLIC","",`assets: ${plan.files.length} files`,"",...plan.files.map(f=>`assets/${f.name}  <-  ${f.character} [${f.linkId}]`)].join("\n");
+  files.push({name:"ASSET_MANIFEST.txt",bytes:enc.encode(manifestText)});
   let total=plan.files.reduce((a,x)=>a+x.blob.size,0),max=plan.files.reduce((a,x)=>Math.max(a,x.blob.size),0);
   $("#assetReport").textContent=`ZIP内assets：${plan.files.length}枚 / 合計 ${fmtBytes(total)} / 最大1枚 ${fmtBytes(max)} / WebP ${plan.maxPx}px・品質${Math.round(plan.quality*100)}%`;
   let zip=makeZip(files),a=document.createElement("a"),u=URL.createObjectURL(zip);a.href=u;a.download="MARINE_TRICK_PUZZLE_PUBLIC.zip";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);
-  alert(`公開ZIPを書き出しました。\nindex.html＋assets ${plan.files.length}枚\nZIPを展開して、中身をそのままGitHubへアップロードしてください。`)
+  alert(`公開ZIPを書き出しました。\n連携ID ${audit.published}体：監査OK\nassets ${plan.files.length}枚：すべてWebP\n\nZIP内は index.html / assets / ASSET_MANIFEST.txt のみです。\nGitHubでは既存assetsを入れ替えてください。`)
  }catch(e){console.error(e);alert("公開ZIP書き出しエラー: "+e.message)}
  finally{b.disabled=false;b.textContent="📦 公開ZIPを書き出し（index.html＋assets）"}
 }
